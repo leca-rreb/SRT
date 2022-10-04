@@ -149,8 +149,22 @@ vec4 interpolateColor(hitinfo_t h)
 
 vec4 interpolateNormal(hitinfo_t h)
 {
-	// TODO
-	return vec4(1,0,0,1);
+	// Heavily inspired by the function above, interpolateColor.
+    // Don't know if this is correct or not.
+
+    vec4 res;
+    if (normals.length() > 0) {
+        vec4 n0, n1, n2;
+        n0 = normals[indices[h.hit_vptr]];
+        n1 = normals[indices[h.hit_vptr + 1]];
+        n2 = normals[indices[h.hit_vptr + 2]];
+        res = (h.t.w * n0 + h.t.y * n1 + h.t.z * n2);
+    } else {
+        res = vec4(1.0, 0.0, 0.0, 1.0);
+    }
+
+	return res;
+
 }
 
 // BVH-related functions:
@@ -322,6 +336,23 @@ bool isIntersected(vec4 origin, vec4 dir)
 
 // Local illumination related functions. TODO
 
+float fresnel_coefficient(float theta)
+{
+
+    float res, f_s, f_p, c_i, eta_2;
+
+    eta_2 = eta * eta;
+    c_i = sqrt(eta_2 - pow(sin(theta), 2));
+
+    f_s = pow(abs((cos(theta) - c_i) / (cos(theta) + c_i)), 2);
+    f_p = pow(abs(((eta_2 * cos(theta)) - c_i) / ((eta_2 * cos(theta)) + c_i)), 2);
+
+    res = (f_s + f_p) / 2; 
+
+    return res;
+
+}
+
 vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 {
 	// Goal: compute direct illumination at point p, from the light source at lightPosition.
@@ -330,7 +361,26 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 	// n: normal at intersection point, xyzw
 	// v: incoming viewing direction. Points towards the eye.
 	// TODO
-	return vec4(0.4, 0.4, 0.4, 1.0);
+
+    vec4 c_a, c_d, c_s;
+    vec4 lightDirection, halfVector;
+    float theta;
+
+    lightDirection = normalize(vec4(lightPosition, 1.0) - p);
+    halfVector = normalize(v + lightDirection);
+    theta = dot(halfVector, lightDirection);
+
+    c_a = Ka * color * lightIntensity;
+    c_d = Kd * color * max(dot(n, lightDirection), 0) * lightIntensity;
+    //c_s = color * max(dot(n, halfVector), 0) * lightIntensity;
+    //c_s = fresnel_coefficient(theta) * color * lightIntensity;
+    //c_s = fresnel_coefficient(theta) * color * max(dot(n, halfVector), 0) * lightIntensity;
+    //c_s = color * pow(max(dot(n, halfVector), 0), shininess) * lightIntensity;
+    c_s = fresnel_coefficient(theta) * color * pow(max(dot(n, halfVector), 0), shininess) * lightIntensity;
+
+    return c_a + c_d + c_s;
+    //return vec4(0.4, 0.4, 0.4, 1.0);
+
 }
 
 const int MAX_TRACE = 3;
@@ -363,6 +413,7 @@ struct trace_state_t
 
 vec4 trace(vec4 origin, vec4 dir)
 {
+
     // These variables are for TP2
     trace_state_t stack[MAX_TRACE + 1];
     bool fallback[MAX_TRACE + 1];
@@ -382,16 +433,20 @@ vec4 trace(vec4 origin, vec4 dir)
 	}
 
     return vec4(0, 0, 0, 1);
+
 }
 
 layout (local_size_x = 8, local_size_y = 8) in;
-void main(void) {
-	// Convert local screen coordinates into world coordinates
+void main(void)
+{
+
+    // Convert local screen coordinates into world coordinates.
     ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(framebuffer);
     if (pix.x >= size.x || pix.y >= size.y) {
         return;
     }
+
     vec2 pos = pix / (size - vec2(0.5, 0.5));
     // pos in [0,1]^2 Need it in [-1,1]^2:
     pos = 2 * pos - vec2(1., 1.);
@@ -402,10 +457,12 @@ void main(void) {
     worldPos /= worldPos.w;
     worldPos.w = 0;
     worldPos = normalize(worldPos);
-    // Step 2: ray direction:
+    
+    // Step 2: Ray direction:
     vec4 dir = normalize((mat_inverse * worldPos));
     vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
     vec4 color = trace(eye, dir);
 
     imageStore(framebuffer, pix, color);
+
 }

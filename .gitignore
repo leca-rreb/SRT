@@ -1,0 +1,8 @@
+*.o
+*.a
+myViewer
+Makefile
+*.stash
+moc_glshaderwindow.cpp
+moc_openglwindow.cpp
+moc_predefs.h
