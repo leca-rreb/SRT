@@ -163,7 +163,7 @@ vec4 interpolateNormal(hitinfo_t h)
         res = vec4(1.0, 0.0, 0.0, 1.0);
     }
 
-	return res;
+	return normalize(res);
 
 }
 
@@ -345,9 +345,8 @@ float fresnel_coefficient(float theta)
     c_i = sqrt(eta_2 - pow(sin(theta), 2));
 
     f_s = pow(abs((cos(theta) - c_i) / (cos(theta) + c_i)), 2);
-    f_p = pow(abs(((eta_2 * cos(theta)) - c_i) / ((eta_2 * cos(theta)) + c_i)), 2);
-
-    res = (f_s + f_p) / 2; 
+    f_p = pow(abs((eta_2 * cos(theta) - c_i) / (eta_2 * cos(theta) + c_i)), 2);
+    res = (f_s + f_p) / 2;
 
     return res;
 
@@ -372,14 +371,9 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 
     c_a = Ka * color * lightIntensity;
     c_d = Kd * color * max(dot(n, lightDirection), 0) * lightIntensity;
-    //c_s = color * max(dot(n, halfVector), 0) * lightIntensity;
-    //c_s = fresnel_coefficient(theta) * color * lightIntensity;
-    //c_s = fresnel_coefficient(theta) * color * max(dot(n, halfVector), 0) * lightIntensity;
-    //c_s = color * pow(max(dot(n, halfVector), 0), shininess) * lightIntensity;
     c_s = fresnel_coefficient(theta) * color * pow(max(dot(n, halfVector), 0), shininess) * lightIntensity;
 
     return c_a + c_d + c_s;
-    //return vec4(0.4, 0.4, 0.4, 1.0);
 
 }
 
@@ -397,7 +391,6 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
         n = interpolateNormal(h);
     }
 }
-
 
 struct trace_state_t
 {
