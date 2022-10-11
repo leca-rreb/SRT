@@ -26,7 +26,7 @@ uniform sampler2D colorTexture;
 
 #define Ka 0.05
 #define Kd 0.3
-#define alpha 0.01
+float alpha = shininess;
 
 struct hitinfo_t {
 	// Index of the first index of the triangle, or: GROUND_VPTR.
@@ -399,8 +399,10 @@ float mf_norm_dist(float theta)
 
 	float term1, term2;
 	float alpha_2;
+	//float shininess_2;
 
 	alpha_2 = alpha * alpha;
+	//shininess_2 = shininess * shininess;
 
 	term1 = chi(theta) / (PI * pow(cos(theta), 4));
 	term2 = alpha_2 / pow(alpha_2 + pow(tan(theta), 2), 2);
@@ -429,20 +431,19 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 	
 	theta_h = dot(halfVector, n);
 	theta_d = dot(halfVector, lightDirection);
-	theta_i = dot(halfVector, lightDirection);
-	theta_o = dot(halfVector, v);
+
+	theta_i = dot(n, lightDirection);
+	theta_o = dot(n, v);
 
 	c_a = Ka * lightIntensity;
 	c_d = Kd * max(dot(n, lightDirection), 0) * lightIntensity;
 
-	if (blinnPhong)
-		c_s = fresnel_coefficient(theta_d) *
-			  pow(max(dot(n, halfVector), 0), shininess) * lightIntensity;
-	else // Cook-Torrance Model
-		c_s = (fresnel_coefficient(theta_d) * mf_norm_dist(theta_h) * 
-			   g1(theta_i) * g1(theta_o)) / 
-			   (4 * cos(theta_i) * cos(theta_o));
-
+	if (blinnPhong) {
+		float s = shininess * 100.0;
+		c_s = fresnel_coefficient(theta_d) * pow(max(dot(n, halfVector), 0), s) * lightIntensity;
+	} else { // Cook-Torrance Model
+		c_s = (fresnel_coefficient(theta_d) * mf_norm_dist(theta_h) * g1(theta_i) * g1(theta_o)) / (4 * cos(theta_i) * cos(theta_o));
+	}
 	return color * (c_a + c_d + c_s);
 
 }
