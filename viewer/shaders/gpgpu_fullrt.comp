@@ -360,25 +360,11 @@ bool isIntersected(vec4 origin, vec4 dir)
 float fresnel_coefficient(float theta)
 {
 
-	float coefficient;
-	float f_s, f_p;
-	float eta_2, sin_theta_2, c_i;
+	float f_0;
 
-	eta_2 = eta * eta;
-	sin_theta_2 = pow(sin(theta), 2);
-	if (eta_2 < sin_theta_2) // Prevents the render from going black.
-		return 1;
+	f_0 = ((eta - 1) * (eta - 1)) / ((eta + 1) * (eta + 1));
 
-	c_i = sqrt((eta_2 - pow(sin(theta), 2)));
-
-	f_s = abs((cos(theta) - c_i) / (cos(theta) + c_i));
-	f_p = abs((eta_2 * cos(theta) - c_i) / (eta_2 * cos(theta) + c_i));
-	f_s *= f_s;
-	f_p *= f_p;
-
-	coefficient = (f_s + f_p) / 2;
-
-	return coefficient;
+	return f_0 + (1 - f_0) * pow(1 - theta, 5);
 
 }
 
@@ -394,25 +380,23 @@ int chi(float theta)
 }
 
 // Micro-Facet Normal Distribution
-float mf_norm_dist(float theta)
-{
-
-	float term1, term2;
-	float alpha_2;
-	//float shininess_2;
-
-	alpha_2 = alpha * alpha;
-	//shininess_2 = shininess * shininess;
-
-	term1 = chi(theta) / (PI * pow(cos(theta), 4));
-	term2 = alpha_2 / pow(alpha_2 + pow(tan(theta), 2), 2);
-
-	return term1 * term2;
-
+float mf_norm_dist(float theta, float s)
+{ 
+	
+	float numerator = chi(theta) * alpha * alpha;
+	float tan_theta_2 = (1 - (theta * theta)) / (theta * theta);
+	float denumerator = PI * pow(theta, 4) * pow((alpha * alpha) + tan_theta_2, 2);
+	return numerator / denumerator;
+	
 }
 
 float g1(float theta)
-{ return 2 / (1 + sqrt(1 + (alpha * alpha) * pow(tan(theta), 2))); }
+{
+	
+	float tan_theta = sqrt(1 - (theta * theta)) / theta;
+	return 2 / (1 + sqrt(1 + (alpha * alpha) * pow(tan_theta, 2))); 
+	
+}
 
 // Computes the direct illumination, at point p, from the light source at
 // lightPosition. The local material has a color 'color', the normal at point p
@@ -423,26 +407,27 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 	// TODO: Somehow incorporate the shininess exponent into the Cook-Torrance
 	// 		 Model.
 	float c_a, c_d, c_s;
-	vec4 lightDirection, halfVector;
+	vec4 l, h;
 	float theta_h, theta_d, theta_i, theta_o;
 
-	lightDirection	= normalize(vec4(lightPosition, 0.0) - p);
-	halfVector		= normalize(v + lightDirection);
+	l = normalize(vec4(lightPosition, 1.0) - p);
+	h = normalize(v + l);
 	
-	theta_h = dot(halfVector, n);
-	theta_d = dot(halfVector, lightDirection);
+	theta_h = clamp(dot(h, n), 0.001, 1.0);
+	theta_d = clamp(dot(h, l), 0.001, 1.0);
 
-	theta_i = dot(n, lightDirection);
-	theta_o = dot(n, v);
+	theta_i = clamp(dot(l, n), 0.001, 1.0);
+	theta_o = clamp(dot(v, n), 0.001, 1.0);
 
 	c_a = Ka * lightIntensity;
-	c_d = Kd * max(dot(n, lightDirection), 0) * lightIntensity;
+	c_d = Kd * theta_i * lightIntensity;
 
+	float s = shininess * 100.0;
 	if (blinnPhong) {
-		float s = shininess * 100.0;
-		c_s = fresnel_coefficient(theta_d) * pow(max(dot(n, halfVector), 0), s) * lightIntensity;
+		c_s = fresnel_coefficient(theta_d) * pow(theta_h, s) * lightIntensity;
 	} else { // Cook-Torrance Model
-		c_s = (fresnel_coefficient(theta_d) * mf_norm_dist(theta_h) * g1(theta_i) * g1(theta_o)) / (4 * cos(theta_i) * cos(theta_o));
+		c_s = (fresnel_coefficient(theta_d)) * mf_norm_dist(theta_h, s) * g1(theta_i) * g1(theta_o)
+				/ (4 * theta_i * theta_o);
 	}
 	return color * (c_a + c_d + c_s);
 
