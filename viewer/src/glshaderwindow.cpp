@@ -29,7 +29,7 @@ glShaderWindow::glShaderWindow(QWindow *parent)
       g_vertices(0), g_normals(0), g_texcoords(0), g_colors(0), g_indices(0),
       gpgpu_vertices(0), gpgpu_normals(0), gpgpu_texcoords(0), gpgpu_colors(0), gpgpu_indices(0),
       environmentMap(0), texture(0), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
-      isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), eta(1.5), lightIntensity(1.0f), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
+      isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), eta(1.5), lightIntensity(1.0f), shininess(50.0f), alpha(0.5f), lightDistance(5.0f), groundDistance(0.78),
       shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), 
       m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
 {
@@ -205,9 +205,17 @@ void glShaderWindow::updateShininess(int shininessSliderValue)
     renderNow();
 }
 
+void glShaderWindow::updateAlpha(int alphaSliderValue)
+{
+
+	alpha = alphaSliderValue / 100.0;
+	renderNow();
+
+}
+
 void glShaderWindow::updateEta(int etaSliderValue)
 {
-    eta = etaSliderValue/100.0;
+    eta = etaSliderValue / 100.0;
     renderNow();
 }
 
@@ -300,8 +308,27 @@ QWidget *glShaderWindow::makeAuxWindow()
     outer->addLayout(hboxEta);
     outer->addWidget(etaSlider);
 
+    // Alpha (surface roughness) slider.
+    QSlider *alphaSlider = new QSlider(Qt::Horizontal);
+    alphaSlider->setTickPosition(QSlider::TicksBelow);
+    alphaSlider->setTickInterval(10);
+    alphaSlider->setMinimum(0);
+    alphaSlider->setMaximum(100);
+    alphaSlider->setSliderPosition(alpha * 100);
+    connect(alphaSlider, SIGNAL(valueChanged(int)), this, SLOT(updateAlpha(int)));
+    QLabel *alphaLabel = new QLabel("Alpha (surface roughness)");
+    QLabel *alphaLabelValue = new QLabel();
+    alphaLabelValue->setNum(alpha);
+    connect(alphaSlider, SIGNAL(valueChanged(int)), alphaLabelValue, SLOT(setNum(int)));
+    QHBoxLayout *hboxAlpha = new QHBoxLayout;
+    hboxAlpha->addWidget(alphaLabel);
+    hboxAlpha->addWidget(alphaLabelValue);
+    outer->addLayout(hboxAlpha);
+    outer->addWidget(alphaSlider);
+
     auxWidget->setLayout(outer);
     return auxWidget;
+
 }
 
 void glShaderWindow::createSSBO() 
@@ -1026,6 +1053,7 @@ void glShaderWindow::render()
         compute_program->setUniformValue("transparent", transparent);
         compute_program->setUniformValue("lightIntensity", lightIntensity);
         compute_program->setUniformValue("shininess", shininess);
+        compute_program->setUniformValue("alpha", alpha);
         compute_program->setUniformValue("eta", eta);
         compute_program->setUniformValue("framebuffer", 2);
         compute_program->setUniformValue("colorTexture", 0);
@@ -1091,6 +1119,7 @@ void glShaderWindow::render()
     m_program->setUniformValue("lightIntensity", lightIntensity);
     m_program->setUniformValue("shininess", shininess);
     m_program->setUniformValue("eta", eta);
+    m_program->setUniformValue("alpha", alpha);
     m_program->setUniformValue("radius", modelMesh->bsphere.r);
 	if (m_program->uniformLocation("colorTexture") != -1) m_program->setUniformValue("colorTexture", 0);
     if (m_program->uniformLocation("envMap") != -1)  m_program->setUniformValue("envMap", 1);

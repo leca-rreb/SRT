@@ -3,6 +3,7 @@
 layout(binding = 2, rgba32f) uniform writeonly image2D framebuffer;
 
 uniform float eta;
+uniform float alpha;
 uniform vec3 center;
 uniform float radius;
 uniform bool blinnPhong;
@@ -26,7 +27,6 @@ uniform sampler2D colorTexture;
 
 #define Ka 0.05
 #define Kd 0.3
-#define alpha 0.01
 
 struct hitinfo_t {
 	// Index of the first index of the triangle, or: GROUND_VPTR.
@@ -357,60 +357,49 @@ bool isIntersected(vec4 origin, vec4 dir)
 }
 
 /* --------------------------- Local illumination --------------------------- */
-float fresnel_coefficient(float theta)
+// Returns the tan from the cos.
+float cos2tan(float cos_theta) { return (sqrt(1 - (cos_theta * cos_theta))) / cos_theta; }
+
+float g1(float cos_theta)
 {
 
-	float coefficient;
-	float f_s, f_p;
-	float eta_2, sin_theta_2, c_i;
-
-	eta_2 = eta * eta;
-	sin_theta_2 = pow(sin(theta), 2);
-	if (eta_2 < sin_theta_2) // Prevents the render from going black.
-		return 1;
-
-	c_i = sqrt((eta_2 - pow(sin(theta), 2)));
-
-	f_s = abs((cos(theta) - c_i) / (cos(theta) + c_i));
-	f_p = abs((eta_2 * cos(theta) - c_i) / (eta_2 * cos(theta) + c_i));
-	f_s *= f_s;
-	f_p *= f_p;
-
-	coefficient = (f_s + f_p) / 2;
-
-	return coefficient;
+	return 2 / (1 + sqrt(1 + (alpha * alpha) * pow(cos2tan(cos_theta), 2)));
 
 }
 
 // Chi Distribution
-int chi(float theta)
+int chi(float cos_theta)
 {
-
-	if (0 <= theta && theta <= PI / 2)
+	// Since cos(0) = 1 and cos(PI / 2) = 0.
+	if (0 <= cos_theta && cos_theta <= 1)
 		return 1;
 	else
 		return 0;
 
 }
 
-// Micro-Facet Normal Distribution
-float mf_norm_dist(float theta)
+// Micro-Facet Normal Distribution.
+float mfnd(float cos_theta)
 {
 
-	float term1, term2;
-	float alpha_2;
+	float alpha_sq = alpha * alpha;
+	float numerator, denominator;
 
-	alpha_2 = alpha * alpha;
+	numerator   = chi(cos_theta) * alpha_sq;
+	denominator = PI * pow(cos_theta, 4) * pow(alpha_sq + pow(cos2tan(cos_theta), 2), 2);
 
-	term1 = chi(theta) / (PI * pow(cos(theta), 4));
-	term2 = alpha_2 / pow(alpha_2 + pow(tan(theta), 2), 2);
-
-	return term1 * term2;
+	return numerator / denominator;
 
 }
 
-float g1(float theta)
-{ return 2 / (1 + sqrt(1 + (alpha * alpha) * pow(tan(theta), 2))); }
+// We use the Schlick approximation given in the lecture slides.
+float fresnel(float cos_theta)
+{
+
+	float f_0 = ((1 - eta) * (1 - eta)) / ((1 + eta) * (1 + eta));
+	return f_0 + (1 - f_0) * pow(1 - cos_theta, 5);
+
+}
 
 // Computes the direct illumination, at point p, from the light source at
 // lightPosition. The local material has a color 'color', the normal at point p
@@ -418,31 +407,26 @@ float g1(float theta)
 vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 {
 
-	// TODO: Somehow incorporate the shininess exponent into the Cook-Torrance
-	// 		 Model.
+	vec4 l, h;
 	float c_a, c_d, c_s;
-	vec4 lightDirection, halfVector;
-	float theta_h, theta_d, theta_i, theta_o;
+	float ct_d, ct_h, ct_i, ct_o;
 
-	lightDirection	= normalize(vec4(lightPosition, 0.0) - p);
-	halfVector		= normalize(v + lightDirection);
-	
-	theta_h = dot(halfVector, n);
-	theta_d = dot(halfVector, lightDirection);
-	theta_i = dot(halfVector, lightDirection);
-	theta_o = dot(halfVector, v);
+	l = normalize(vec4(lightPosition, 1.0) - p);
+	h = normalize(v + l);
+
+	ct_d = clamp(dot(h, l), 0.001, 1.0); // cos(theta_d)
+	ct_h = clamp(dot(n, h), 0.001, 1.0); // cos(theta_h)
+	ct_i = clamp(dot(n, l), 0.001, 1.0); // cos(theta_i)
+	ct_o = clamp(dot(n, v), 0.001, 1.0); // cos(theta_o)
 
 	c_a = Ka * lightIntensity;
-	c_d = Kd * max(dot(n, lightDirection), 0) * lightIntensity;
-
+	c_d = Kd * ct_i * lightIntensity;
+	
 	if (blinnPhong)
-		c_s = fresnel_coefficient(theta_d) *
-			  pow(max(dot(n, halfVector), 0), shininess) * lightIntensity;
-	else // Cook-Torrance Model
-		c_s = (fresnel_coefficient(theta_d) * mf_norm_dist(theta_h) * 
-			   g1(theta_i) * g1(theta_o)) / 
-			   (4 * cos(theta_i) * cos(theta_o));
-
+		c_s = fresnel(ct_d) * pow(ct_h, shininess) * lightIntensity;
+	else
+		c_s = (fresnel(ct_d) * mfnd(ct_h) * g1(ct_i) * g1(ct_o)) / (4 * ct_i * ct_o);
+	
 	return color * (c_a + c_d + c_s);
 
 }
