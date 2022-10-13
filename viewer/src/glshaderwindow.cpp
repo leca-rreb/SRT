@@ -201,7 +201,7 @@ void glShaderWindow::updateLightIntensity(int lightSliderValue)
 
 void glShaderWindow::updateShininess(int shininessSliderValue)
 {
-    shininess = shininessSliderValue;
+    shininess = shininessSliderValue / 100.0;
     renderNow();
 }
 
@@ -277,7 +277,7 @@ QWidget *glShaderWindow::makeAuxWindow()
     QSlider* shininessSlider = new QSlider(Qt::Horizontal);
     shininessSlider->setTickPosition(QSlider::TicksBelow);
     shininessSlider->setMinimum(0);
-    shininessSlider->setMaximum(200);
+    shininessSlider->setMaximum(100);
     shininessSlider->setSliderPosition(shininess);
     connect(shininessSlider,SIGNAL(valueChanged(int)),this,SLOT(updateShininess(int)));
     QLabel* shininessLabel = new QLabel("Phong exponent = ");
