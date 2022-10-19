@@ -440,6 +440,18 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 
 const int MAX_TRACE = 3;
 
+struct trace_state_t {
+	vec4 origin;  		// Start of ray.
+	vec4 dir;     		// Direction.
+	vec4 color;			// Color after multiple bounces.
+	vec4 localColor;	// Color of the material (after interpolation).
+	hitinfo_t h;  		// What the ray hits (triangle Id, u, v, lambda).
+	vec4 hit;     		// Point the ray hits.
+	vec4 Ld;      		// Direction to light at destination.
+	vec4 N;       		// Normal at destination.
+};
+
+
 void getLocal(vec4 origin, vec4 dir, hitinfo_t h, 
 			  out vec4 color, out vec4 p, out vec4 n)
 {
@@ -459,25 +471,64 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h,
 
 }
 
-struct trace_state_t {
-	vec4 origin;  		// Start of ray.
-	vec4 dir;     		// Direction.
-	vec4 color;			// Color after multiple bounces.
-	vec4 localColor;	// Color of the material (after interpolation).
-	hitinfo_t h;  		// What the ray hits (triangle Id, u, v, lambda).
-	vec4 hit;     		// Point the ray hits.
-	vec4 Ld;      		// Direction to light at destination.
-	vec4 N;       		// Normal at destination.
-};
+vec4 indirectIllumination(struct trace_state_t stack[MAX_TRACE])
+{
+
+	// Forward tracing
+	int i = 0;
+	while (firstIntersection(stack[i].origin, stack[i].dir, stack[i].h) || i <= MAX_TRACE) {
+		stack[i + 1].origin = stack[i].hit;
+		stack[i + 1].dir 	= reflect(stack[i].dir, stack[i].N);
+
+		if (intersectBVH(stack[i + 1].origin, stack[i + 1].dir, stack[i + 1].h)) {
+			getLocal(stack[i + 1].origin, stack[i + 1].dir, stack[i + 1].h, 
+				stack[i + 1].localColor, stack[i + 1].hit, stack[i + 1].N);
+			stack[i + 1].Ld = normalize(vec4(lightPosition, 1.0) - stack[i + 1].hit);
+		}
+		i++;
+	}
+
+	i--; // 'Cause one index to far y'know
+	// Backward tracing
+	while (i >= 0) {
+		if (i == MAX_TRACE)
+			stack[i].color = directIllumination(stack[i].localColor, stack[i].hit, stack[i].N, normalize(stack[0].origin - hit));
+		else
+			stack[i].color = directIllumination(stack[i].localColor, stack[i].hit, stack[i].N, normalize(stack[0].origin - hit)) + stack[i+1].color;
+		i--;
+	}
+
+	return stack[0].color;
+
+}
+
+vec4 globalIllumination(vec4 origin, vec4 dir)
+{
+	
+	hitinfo_t hl;
+	vec4 localColor, hit, n;
+	trace_state_t stack[MAX_TRACE + 1];
+
+	// First point of contact.
+	getLocal(origin, dir, hl, localColor, hit, n);
+	stack[0].origin 	= origin;
+	stack[0].dir 		= dir;
+	stack[0].localColor = localColor;
+	stack[0].h 			= hl;
+	stack[0].hit 		= hit;
+	stack[0].Ld 		= normalize(vec4(lightPosition, 1.0) - hit);
+	stack[0].N			= n;
+	
+	return directIllumination(color, hit, n, -dir) + indirectIllumination(stack);
+
+}
 
 vec4 trace(vec4 origin, vec4 dir)
 {
 
 	// These variables are for TP2.
-	trace_state_t stack[MAX_TRACE + 1];
 	bool fallback[MAX_TRACE + 1];
 	int sp = 0;
-
 	// These are for TP1.
 	hitinfo_t hl;
 	vec4 hit;
@@ -487,8 +538,8 @@ vec4 trace(vec4 origin, vec4 dir)
 	float specular_factor, LdN;
 
 	if (firstIntersection(origin, dir, hl)) {
-		getLocal(origin, dir, hl, localColor, hit, N);
-		return directIllumination(localColor, hit, N, -dir);
+		return globalIllumination(origin, dir);
+		//return globalIllumination(origin, localColor, hit, N, -dir, stack);
 	} else
 		return vec4(0, 0, 0, 1);
 
