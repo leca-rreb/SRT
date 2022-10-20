@@ -360,8 +360,6 @@ bool isIntersected(vec4 origin, vec4 dir)
 // Returns the tan from the cos.
 float cos2tan(float cos_theta) { return (sqrt(1 - (cos_theta * cos_theta))) / cos_theta; }
 
-float cos2sin(float cos_theta) { return (sqrt(1 - cos_theta * cos_theta)); }
-
 float g1(float cos_theta)
 {
 
@@ -369,7 +367,7 @@ float g1(float cos_theta)
 
 }
 
-// Chi
+// Chi Distribution
 int chi(float cos_theta)
 {
 	// Since cos(0) = 1 and cos(PI / 2) = 0.
@@ -421,20 +419,15 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 	ct_i = clamp(dot(n, l), 0.001, 1.0); // cos(theta_i)
 	ct_o = clamp(dot(n, v), 0.001, 1.0); // cos(theta_o)
 
-	if (!isIntersected(p, l) && ct_i >= 0) {
-		c_a = Ka * lightIntensity;
-		c_d = Kd * ct_i * lightIntensity;
-		
-		if (blinnPhong)
-			c_s = fresnel(ct_d) * pow(ct_h, shininess) * lightIntensity;
-		else
-			c_s = (fresnel(ct_d) * mfnd(ct_h) * g1(ct_i) * g1(ct_o)) / (4 * ct_i * ct_o);
-		
-		return color * (c_a + c_d + c_s);
-	}
-
-	return Ka * color * lightIntensity;
-
+	c_a = Ka * lightIntensity;
+	c_d = Kd * ct_i * lightIntensity;
+	
+	if (blinnPhong)
+		c_s = fresnel(ct_d) * pow(ct_h, shininess) * lightIntensity;
+	else
+		c_s = (fresnel(ct_d) * mfnd(ct_h) * g1(ct_i) * g1(ct_o)) / (4 * ct_i * ct_o);
+	
+	return color * (c_a + c_d + c_s);
 
 }
 
