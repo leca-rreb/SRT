@@ -422,12 +422,15 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 	c_a = Ka * lightIntensity;
 	c_d = Kd * ct_i * lightIntensity;
 	
-	if (blinnPhong)
-		c_s = fresnel(ct_d) * pow(ct_h, shininess) * lightIntensity;
-	else
-		c_s = (fresnel(ct_d) * mfnd(ct_h) * g1(ct_i) * g1(ct_o)) / (4 * ct_i * ct_o);
+	if (dot(n, l) >= 0 && !isIntersected(p, l)) {
+		if (blinnPhong)
+			c_s = fresnel(ct_d) * pow(ct_h, shininess) * lightIntensity;
+		else
+			c_s = (fresnel(ct_d) * mfnd(ct_h) * g1(ct_i) * g1(ct_o)) / (4 * ct_i * ct_o);
+		return color * (c_a + c_d + c_s);
+	} else
+		return color * c_a;
 	
-	return color * (c_a + c_d + c_s);
 
 }
 
@@ -463,6 +466,20 @@ struct trace_state_t {
 	vec4 N;       		// Normal at destination.
 };
 
+void trace_state_init(inout trace_state_t trace, vec4 origin, vec4 dir, vec4 color, vec4 localColor, 
+						hitinfo_t h, vec4 hit, vec4 N)
+{
+
+	trace.origin 		= origin;
+	trace.dir 			= dir;
+	trace.color 		= color;
+	trace.localColor 	= localColor;
+	trace.h 			= h;
+	trace.hit 			= hit;
+	trace.N 			= N;
+
+}
+
 vec4 trace(vec4 origin, vec4 dir)
 {
 
@@ -481,7 +498,45 @@ vec4 trace(vec4 origin, vec4 dir)
 
 	if (firstIntersection(origin, dir, hl)) {
 		getLocal(origin, dir, hl, localColor, hit, N);
-		return directIllumination(localColor, hit, N, -dir);
+		
+		trace_state_t current, previous;
+		current.origin 		= origin;
+		current.dir 		= dir;
+		current.localColor 	= localColor;
+		current.h 			= hl;
+		current.hit 		= hit;
+		current.Ld 			= normalize(vec4(lightPosition, 1.0) - hit);
+		current.N 			= N;
+
+		push(stack, sp, current);
+		
+		current.origin	= current.hit;
+		current.dir 	= reflect(current.dir, current.N);
+
+		while (firstIntersection(current.origin, current.dir, current.h) && sp < MAX_TRACE) {
+			getLocal(current.origin, current.dir, current.h, current.localColor, current.hit, current.N);
+			current.Ld = normalize(vec4(lightPosition, 1.0) - current.hit);
+			push(stack, sp, current);
+
+			current.origin	= current.hit;
+			current.dir 	= reflect(current.dir, current.N);
+		}
+
+		int i = 1;
+		while (sp != 0) {
+			current = pop(stack, sp);
+			if (i == 1) {
+				current.color = directIllumination(current.localColor, current.hit, current.N, -current.dir);
+				i = 0;
+			} else {
+				vec4 h = normalize(-dir + current.Ld);
+				current.color = previous.color * fresnel(clamp(dot(h, current.N), 0.001, 1.0));
+			}
+			previous = current;
+		}
+
+		//return directIllumination(localColor, hit, N, -dir);
+		return current.color;
 	} else
 		return vec4(0, 0, 0, 1);
 
