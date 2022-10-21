@@ -530,7 +530,7 @@ vec4 trace(vec4 origin, vec4 dir)
 				i = 0;
 			} else {
 				vec4 h = normalize(-dir + current.Ld);
-				current.color = previous.color * fresnel(clamp(dot(h, current.N), 0.001, 1.0));
+				current.color = (previous.color * fresnel(clamp(dot(h, current.N), 0.001, 1.0))) + directIllumination(current.localColor, current.hit, current.N, -current.dir);
 			}
 			previous = current;
 		}
