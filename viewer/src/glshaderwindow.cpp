@@ -5,6 +5,7 @@
 #include <QScreen>
 #include <QQuaternion>
 #include <QOpenGLFramebufferObjectFormat>
+#include <QTimer>
 // Buttons/sliders for User interface:
 #include <QGroupBox>
 #include <QRadioButton>
@@ -31,7 +32,8 @@ glShaderWindow::glShaderWindow(QWindow *parent)
       environmentMap(0), texture(0), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
       isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), eta(1.5), lightIntensity(1.0f), shininess(50.0f), alpha(0.5f), lightDistance(5.0f), groundDistance(0.78),
       shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), 
-      m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
+      m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer), 
+	  time(0)
 {
     // Default values you might want to tinker with
     shadowMapDimension = 2048;
@@ -42,6 +44,12 @@ glShaderWindow::glShaderWindow(QWindow *parent)
     m_fragShaderSuffix << "*.frag" << "*.fs";
     m_vertShaderSuffix << "*.vert" << "*.vs";
     m_compShaderSuffix << "*.comp" << "*.cs";
+	
+	timer = new QElapsedTimer();
+	timer->start();
+
+	startTimer(1000);
+
 }
 
 glShaderWindow::~glShaderWindow()
@@ -995,7 +1003,10 @@ void glShaderWindow::mouseReleaseEvent(QMouseEvent *e)
 
 void glShaderWindow::timerEvent(QTimerEvent *e)
 {
-
+    
+	time = timer->elapsed();
+	//std::cout << "Time: " << time << std::endl;
+	renderNow();
 }
 
 void glShaderWindow::keyPressEvent(QKeyEvent* event) {
@@ -1042,6 +1053,7 @@ void glShaderWindow::render()
         compute_program->bind();
 		computeResult->bind(2);
         // Send parameters to compute program:
+		compute_program->setUniformValue("time", time);
         compute_program->setUniformValue("center", m_center);
         compute_program->setUniformValue("radius", modelMesh->bsphere.r);
         compute_program->setUniformValue("groundDistance", groundDistance * modelMesh->bsphere.r - m_center[1]);
@@ -1112,6 +1124,7 @@ void glShaderWindow::render()
         m_program->setUniformValue("lightMatrix", m_matrix[1]);
         m_program->setUniformValue("normalMatrix", m_matrix[0].normalMatrix());
     }
+	m_program->setUniformValue("time", time);
     m_program->setUniformValue("lightPosition", lightPosition);
     m_program->setUniformValue("lightIntensity", 1.0f);
     m_program->setUniformValue("blinnPhong", blinnPhong);

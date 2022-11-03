@@ -14,7 +14,7 @@
 #include <QtGui/QOpenGLFunctions>
 #include <QtGui/QScreen>
 #include <QMouseEvent>
-
+#include <QElapsedTimer>
 
 class glShaderWindow : public OpenGLWindow
 {
@@ -53,7 +53,7 @@ protected:
     void mousePressEvent(QMouseEvent *e);
     void mouseMoveEvent(QMouseEvent *e);
     void mouseReleaseEvent(QMouseEvent *e);
-    void timerEvent(QTimerEvent *e);
+    void timerEvent(QTimerEvent *e) override;
     void resizeEvent(QResizeEvent * ev);
     void wheelEvent(QWheelEvent * ev);
     void keyPressEvent(QKeyEvent* event);
@@ -97,6 +97,7 @@ private:
     int compute_groupsize_y;
     // ComputeShader:
     GLuint ssbo[5];
+	uint time;
     // Parameters controlled by UI
     bool blinnPhong;
     bool transparent;
@@ -153,6 +154,8 @@ private:
     float m_screenSize; // max window dimension
     QWidget* auxWidget; // window for parameters
     QWidget* container;
+
+	QElapsedTimer *timer;
 };
 
 #endif // GLSHADERWINDOW_H
