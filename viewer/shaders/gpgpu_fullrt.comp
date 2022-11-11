@@ -1,9 +1,9 @@
 #version 430 core
 
-layout(binding = 2, rgba32f) uniform writeonly image2D framebuffer;
+layout(binding = 2, rgba32f) uniform image2D framebuffer;
 
 uniform float eta;
-uniform uint time;
+uniform uint random;
 uniform float alpha;
 uniform vec3 center;
 uniform float radius;
@@ -16,6 +16,7 @@ uniform mat4 persp_inverse;
 uniform float groundDistance;
 uniform float lightIntensity;
 uniform sampler2D colorTexture;
+uniform int counter;
 
 #define MAX_SCENE_BOUNDS    10.0
 #define EPS                 0.000001
@@ -557,32 +558,47 @@ layout (local_size_x = 8, local_size_y = 8) in;
 
 void main(void) {
 
-	//float seed = fract(time);
+
+	float seed = fract(random);
 
 	// Convert local screen coordinates into world coordinates.
-	ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
-//	pix.x += gold_noise(vec2(pix.x, pix.y), seed); // Add a bit o' noise.
-//	pix.y += gold_noise(vec2(pix.x, pix.y), seed); // Add a bit o' noise.
+	vec2 pix;
+	vec2 le_vrai_pix = vec2(gl_GlobalInvocationID.xy);
+	vec4 color = vec4(0.0);
+	vec4 previous = imageLoad(framebuffer, ivec2(pix));
 	ivec2 size = imageSize(framebuffer);
-	if (pix.x >= size.x || pix.y >= size.y)
-		return;
 
-	vec2 pos = pix / (size - vec2(0.5, 0.5));
-	// pos in [0,1]^2 need it in [-1,1]^2.
-	pos = 2 * pos - vec2(1., 1.);
+	int i;
+	for (i = 0; i < 3; i++) {
+		pix = le_vrai_pix;
+		pix.x += clamp(gold_noise(pix, seed), 0.0, 1.0 ); // Add a bit o' noise.
+		pix.y += clamp(gold_noise(pix, seed), 0.0, 1.0 ); // Add a bit o' noise.
 
-	// Step 1: I need pixel coordinates.
-	vec4 worldPos = vec4(pos.x, pos.y, 1.0, 1.0);
-	worldPos = persp_inverse * worldPos;
-	worldPos /= worldPos.w;
-	worldPos.w = 0;
-	worldPos = normalize(worldPos);
+		//pix.x += gold_noise(pix, seed);
+		//pix.y += gold_noise(pix, seed); // Add a bit o' noise.
+		
+		if (pix.x >= size.x || pix.y >= size.y)
+			return;
 
-	// Step 2: Ray direction:
-	vec4 dir = normalize((mat_inverse * worldPos));
-	vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
-	vec4 color = trace(eye, dir);
+		vec2 pos = pix / (size - vec2(0.5, 0.5));
+		// pos in [0,1]^2 need it in [-1,1]^2.
+		pos = 2 * pos - vec2(1., 1.);
 
-	imageStore(framebuffer, pix, color);
+		// Step 1: I need pixel coordinates.
+		vec4 worldPos = vec4(pos.x, pos.y, 1.0, 1.0);
+		worldPos = persp_inverse * worldPos;
+		worldPos /= worldPos.w;
+		worldPos.w = 0;
+		worldPos = normalize(worldPos);
+
+		// Step 2: Ray direction:
+		vec4 dir = normalize((mat_inverse * worldPos));
+		vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
+		color += trace(eye, dir);
+	}
+	color /= i;
+	color += (color + previous) / counter;
+
+	imageStore(framebuffer, ivec2(le_vrai_pix), color);
 
 }

@@ -97,7 +97,8 @@ private:
     int compute_groupsize_y;
     // ComputeShader:
     GLuint ssbo[5];
-	uint time;
+	uint random;
+	uint counter;
     // Parameters controlled by UI
     bool blinnPhong;
     bool transparent;
