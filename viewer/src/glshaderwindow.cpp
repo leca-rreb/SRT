@@ -120,6 +120,8 @@ void glShaderWindow::openSceneFromFile() {
     if (!modelName.isNull())
     {
         openScene();
+    counter = 1;
+
         renderNow();
     }
 }
@@ -148,6 +150,8 @@ void glShaderWindow::openNewTexture() {
 				texture->bind(0);
             }
         }
+    counter = 1;
+
         renderNow();
     }
 }
@@ -597,6 +601,8 @@ void glShaderWindow::openScene()
             modelMesh->bsphere.center[2]);
 
 	if (compute_program) {
+    counter = 1;
+
         createSSBO();
     }
     bindSceneToProgram();
@@ -835,6 +841,8 @@ void glShaderWindow::initialize()
 void glShaderWindow::resizeEvent(QResizeEvent* event)
 {
    OpenGLWindow::resizeEvent(event);
+    counter = 1;
+
    resize(event->size().width(), event->size().height());
 }
 
@@ -935,6 +943,7 @@ void glShaderWindow::mousePressEvent(QMouseEvent *e)
 {
     lastMousePosition = (2.0/m_screenSize) * (QVector2D(e->localPos()) - QVector2D(0.5 * width(), 0.5*height()));
     mouseButton = e->button();
+    counter = 1;
 }
 
 void glShaderWindow::wheelEvent(QWheelEvent * ev)
@@ -953,6 +962,8 @@ void glShaderWindow::wheelEvent(QWheelEvent * ev)
     } else  if (matrixMoving == 2) {
         groundDistance += 0.1 * numDegrees.y();
     }
+    counter = 1;
+    
     renderNow();
 }
 
@@ -994,18 +1005,23 @@ void glShaderWindow::mouseMoveEvent(QMouseEvent *e)
 	default: break;
     }
     lastMousePosition = mousePosition;
+    counter = 1;
+
     renderNow();
 }
 
 void glShaderWindow::mouseReleaseEvent(QMouseEvent *e)
 {
     mouseButton = Qt::NoButton;
+    counter = 1;
+
 }
 
 void glShaderWindow::timerEvent(QTimerEvent *e)
 {
 	random = rand();
 	renderNow();
+    counter++;
 }
 
 void glShaderWindow::keyPressEvent(QKeyEvent* event) {
@@ -1034,6 +1050,7 @@ static int nextPower2(int x) {
 
 void glShaderWindow::render()
 {
+
     QVector3D lightPosition = m_matrix[1] * (m_center + lightDistance * modelMesh->bsphere.r * QVector3D(0.5, 0.5, 1));
 
     QMatrix4x4 lightCoordMatrix;
@@ -1048,7 +1065,7 @@ void glShaderWindow::render()
     } 
     if (hasComputeShaders) {
         // We bind the texture generated to texture unit 2 (0 is for the texture, 1 for the env map)
-               glActiveTexture(GL_TEXTURE2);
+        glActiveTexture(GL_TEXTURE2);
         compute_program->bind();
 		computeResult->bind(2);
         // Send parameters to compute program:
@@ -1069,7 +1086,6 @@ void glShaderWindow::render()
         compute_program->setUniformValue("counter", counter);
         compute_program->setUniformValue("framebuffer", 2);
         compute_program->setUniformValue("colorTexture", 0);
-		counter++;
 		glBindImageTexture(2, computeResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
         int worksize_x = nextPower2(width());
         int worksize_y = nextPower2(height());
@@ -1135,6 +1151,7 @@ void glShaderWindow::render()
     m_program->setUniformValue("counter", counter);
     m_program->setUniformValue("eta", eta);
     m_program->setUniformValue("alpha", alpha);
+    m_program->setUniformValue("counter", counter);
     m_program->setUniformValue("radius", modelMesh->bsphere.r);
 	if (m_program->uniformLocation("colorTexture") != -1) m_program->setUniformValue("colorTexture", 0);
     if (m_program->uniformLocation("envMap") != -1)  m_program->setUniformValue("envMap", 1);

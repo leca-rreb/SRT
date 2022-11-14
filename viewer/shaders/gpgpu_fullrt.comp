@@ -542,6 +542,7 @@ vec4 trace(vec4 origin, vec4 dir)
 			} else {
 				vec4 h = normalize(-dir + current.Ld);
 				current.color = (previous.color * fresnel(clamp(dot(h, current.N), 0.001, 1.0))) + directIllumination(current.localColor, current.hit, current.N, -current.dir);
+				current.color = min(current.color, vec4(1.0, 1.0, 1.0, 1.0));
 			}
 			previous = current;
 		}
@@ -565,40 +566,41 @@ void main(void) {
 	vec2 pix;
 	vec2 le_vrai_pix = vec2(gl_GlobalInvocationID.xy);
 	vec4 color = vec4(0.0);
-	vec4 previous = imageLoad(framebuffer, ivec2(pix));
 	ivec2 size = imageSize(framebuffer);
 
-	int i;
-	for (i = 0; i < 3; i++) {
-		pix = le_vrai_pix;
-		pix.x += clamp(gold_noise(pix, seed), 0.0, 1.0 ); // Add a bit o' noise.
-		pix.y += clamp(gold_noise(pix, seed), 0.0, 1.0 ); // Add a bit o' noise.
+	pix = le_vrai_pix;
+	
+	pix.x += clamp(gold_noise(pix, seed), 0.0, 0.5); // Add a bit o' noise.
+	pix.y += clamp(gold_noise(pix, seed), 0.0, 0.5); // Add a bit o' noise.
+	
+	if (pix.x >= size.x || pix.y >= size.y)
+		return;
 
-		//pix.x += gold_noise(pix, seed);
-		//pix.y += gold_noise(pix, seed); // Add a bit o' noise.
-		
-		if (pix.x >= size.x || pix.y >= size.y)
-			return;
+	vec2 pos = pix / (size - vec2(0.5, 0.5));
+	// pos in [0,1]^2 need it in [-1,1]^2.
+	pos = 2 * pos - vec2(1., 1.);
 
-		vec2 pos = pix / (size - vec2(0.5, 0.5));
-		// pos in [0,1]^2 need it in [-1,1]^2.
-		pos = 2 * pos - vec2(1., 1.);
+	// Step 1: I need pixel coordinates.
+	vec4 worldPos = vec4(pos.x, pos.y, 1.0, 1.0);
+	worldPos = persp_inverse * worldPos;
+	worldPos /= worldPos.w;
+	worldPos.w = 0;
+	worldPos = normalize(worldPos);
 
-		// Step 1: I need pixel coordinates.
-		vec4 worldPos = vec4(pos.x, pos.y, 1.0, 1.0);
-		worldPos = persp_inverse * worldPos;
-		worldPos /= worldPos.w;
-		worldPos.w = 0;
-		worldPos = normalize(worldPos);
+	// Step 2: Ray direction:
+	vec4 dir = normalize((mat_inverse * worldPos));
+	vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
+	color = trace(eye, dir);
+	
+	
 
-		// Step 2: Ray direction:
-		vec4 dir = normalize((mat_inverse * worldPos));
-		vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
-		color += trace(eye, dir);
+	if (counter == 1)
+		imageStore(framebuffer, ivec2(le_vrai_pix), color);
+	else {
+		vec4 previous = imageLoad(framebuffer, ivec2(le_vrai_pix));
+		color = ((counter - 1) * previous + color) / (counter + 1);
+		imageStore(framebuffer, ivec2(le_vrai_pix), color);
 	}
-	color /= i;
-	color += (color + previous) / counter;
 
-	imageStore(framebuffer, ivec2(le_vrai_pix), color);
 
 }
