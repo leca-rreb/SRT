@@ -2,19 +2,18 @@
 
 layout(binding = 2, rgba32f) uniform writeonly image2D framebuffer;
 
-uniform float eta;
-uniform float alpha;
-uniform vec3 center;
-uniform float radius;
-uniform bool blinnPhong;
-uniform float shininess;
-uniform mat4 mat_inverse;
-uniform bool transparent;
-uniform vec3 lightPosition;
-uniform mat4 persp_inverse;
-uniform float groundDistance;
-uniform float lightIntensity;
 uniform sampler2D colorTexture;
+uniform mat4 mat_inverse;
+uniform mat4 persp_inverse;
+uniform float lightIntensity;
+uniform vec3 lightPosition;
+uniform bool blinnPhong;
+uniform bool transparent;
+uniform float shininess;
+uniform float eta;
+uniform float radius;
+uniform float groundDistance;
+uniform vec3 center;
 
 #define MAX_SCENE_BOUNDS    10.0
 #define EPS                 0.000001
@@ -22,16 +21,17 @@ uniform sampler2D colorTexture;
 #define MIN_DISTANCE EPS
 #define GROUND_VPTR -1
 
+const float PI  = 3.14159265358979323846264;
 #define M_1_PI 0.31830988618
-#define PI 3.141592653589793
 
 #define Ka 0.05
 #define Kd 0.3
 
-struct hitinfo_t {
-	// Index of the first index of the triangle, or: GROUND_VPTR.
-	int hit_vptr;
+const float alpha = 1 - shininess;
 
+struct hitinfo_t {
+	// Index of the first index of the triangle or: GROUND_VPTR.
+	int hit_vptr;
 	// Intersection distance, barycentric coordinates or: intersection distance,
 	// 0, texture coordinates (for the ground).
 	vec4 t;
@@ -55,14 +55,14 @@ layout (std430, binding = 4) buffer Meshes { int indices[]; };
 layout (std430, binding = 5) buffer BVHNodes { BVHNode nodes[]; };
 
 
-// Checks whether there is an intersection between the ray (origin, dir) and the
-// bounding box (bbmin, bbmax). Stores into tNear the nearest point of
+// Check whether there is an intersection between the ray (origin, dir) and the
+// bounding box (bbmin, bbmax), stores into tNear the nearest point of
 // intersection on the ray.
-bool intersectBoundingBox(vec4 origin, vec4 dir, vec4 bbmin, vec4 bbmax,
-							out float tNear)
+bool intersectBoundingBox(vec4 origin, vec4 dir, 
+						  vec4 bbmin, vec4 bbmax, out float tNear)
 {
 
-	// Intersect with BB.
+	// intersect with BB:
 	vec4 sMin = (bbmin - origin) / dir;
 	vec4 sMax = (bbmax - origin) / dir;
 
@@ -73,18 +73,19 @@ bool intersectBoundingBox(vec4 origin, vec4 dir, vec4 bbmin, vec4 bbmax,
 	float tFar = min(min(tMax.x, tMax.y), tMax.z);
 
 	if (tNear < 0)
-		tNear = 0; // Starting point inside the BVH.
+		tNear = 0; // starting point inside the BVH
 	
 	return tNear <= tFar;
 
 }
 
-// Intersect ray (origin, dir) with triangle defined by ptr (number inside the
-// indexed face set) returns a boolean, plus the "t" of hitinfo structure.
+// Intersect ray (origin, dir) with triangle defined by ptr (number inside
+// indexed face set) returns a boolean, plus the "t" of hitinfo structure
+// (Intersection distance, barycentric coordinates).
 bool intersectTriangle(vec4 origin, vec4 dir, int ptr, out vec4 dist)
 {
 
-	// Vertices from the data.
+	// vertices from data:
 	vec4 v0 = vertices[indices[ptr]];
 	vec4 v1 = vertices[indices[ptr + 1]];
 	vec4 v2 = vertices[indices[ptr + 2]];
@@ -99,12 +100,12 @@ bool intersectTriangle(vec4 origin, vec4 dir, int ptr, out vec4 dist)
 
 	// We do early exit here: as soon as we can return false, we do.
 	// In my tests, it is faster than computing all coordinates, 
-	// *then* checking validity with a single test. YMMV, feel free to test.
+	// *then* checking validity with a single test. YMMV, feel free to test
 	vec3 t = (origin - v0).xyz;
 	dist.y = dot(t, p);
 	if (dist.y < 0.0 || dist.y > det)
 		return false;
-
+	
 	vec3 q = cross(t, e1);
 	dist.z = dot(dir.xyz, q);
 	if (dist.z < 0.0 || dist.z > det)
@@ -116,7 +117,6 @@ bool intersectTriangle(vec4 origin, vec4 dir, int ptr, out vec4 dist)
 	
 	dist.x = dot(e2, q);
 	dist /= det;
-	
 	return (dist.x > EPS);
 
 }
@@ -135,6 +135,7 @@ bool intersectGround(vec4 origin, vec4 dir, out vec4 dist)
 	point.y = -groundDistance;
 	vec4 scaledPoint = point / radius ;
 	vec2 texCoords = 0.5 * scaledPoint.xz + 0.5;
+
 	dist = vec4(t, 0.0, texCoords);
 
 	return true;
@@ -154,28 +155,20 @@ vec4 interpolateColor(hitinfo_t h)
 
 }
 
-// Heavily inspired by interpolateColor.
-// Don't know if this is correct or not.
 vec4 interpolateNormal(hitinfo_t h)
 {
 
-	vec4 res;
-
 	if (normals.length() > 0) {
-		vec4 n0, n1, n2;
-		n0 = normals[indices[h.hit_vptr]];
-		n1 = normals[indices[h.hit_vptr + 1]];
-		n2 = normals[indices[h.hit_vptr + 2]];
-		res = (h.t.w * n0 + h.t.y * n1 + h.t.z * n2);
-	} else {
-		res = vec4(1.0, 0.0, 0.0, 1.0);
-	}
-
-	return normalize(res);
+		vec4 n0 = normals[indices[h.hit_vptr]];
+		vec4 n1 = normals[indices[h.hit_vptr + 1]];
+		vec4 n2 = normals[indices[h.hit_vptr + 2]];
+		return normalize(h.t.w * n0 + h.t.y * n1 + h.t.z * n2);
+	} else
+		return normalize(vec4(1.0, 0.0, 0.0, 1.0));
 
 }
 
-/* ---------------------------------- BVH ----------------------------------- */
+// BVH-related functions:
 bool isLeaf(BVHNode node) { return node.nbTriangles != 0; }
 
 bool intersectBVHLeaf(BVHNode node, vec4 origin, vec4 dir, inout hitinfo_t h)
@@ -184,8 +177,8 @@ bool intersectBVHLeaf(BVHNode node, vec4 origin, vec4 dir, inout hitinfo_t h)
 	bool hit = false;
 
 	for (int i = 0; i < node.nbTriangles; ++i) {
-		vec4 dist;
 		int vptr = 3 * (node.index + i);
+		vec4 dist;
 		if (intersectTriangle(origin, dir, vptr, dist) && dist.x < h.t.x) {
 			hit = true;
 			h.hit_vptr = vptr;
@@ -201,8 +194,8 @@ bool intersectBVHLeaf(BVHNode node, vec4 origin, vec4 dir)
 {
 
 	for (int i = 0; i < node.nbTriangles; ++i) {
-		vec4 dist;
 		int vptr = 3 * (node.index + i);
+		vec4 dist;
 		if (intersectTriangle(origin, dir, vptr, dist))
 			return true;
 	}
@@ -212,6 +205,7 @@ bool intersectBVHLeaf(BVHNode node, vec4 origin, vec4 dir)
 }
 
 #define MAX_STACK_SIZE 64
+
 #define push(stack, size, value) stack[size++] = value
 #define pop(stack, size) stack[--size]
 
@@ -232,16 +226,14 @@ bool intersectBVH(vec4 origin, vec4 dir, inout hitinfo_t h)
 	
 	int size = 0;
 	push(stack, size, StackElement(rootIndex, 0.0));
-
 	bool hit = false;
+
 	while (size != 0) {
 		StackElement current = pop(stack, size);
-
 		if (h.t.x < current.t)
 			continue;
 
 		BVHNode currentNode = nodes[current.index];
-	
 		if (isLeaf(currentNode))
 			hit = intersectBVHLeaf(currentNode, origin, dir, h) || hit;
 		else {
@@ -323,7 +315,7 @@ bool intersectBVH(vec4 origin, vec4 dir)
 	return false;
 
 }
-/* -------------------------------- BVH End --------------------------------- */
+// End BVH-related functions
 
 // Compute the first intersection along the ray (origin, dir).
 // Returns the nearest intersection in h.
@@ -345,8 +337,8 @@ bool firstIntersection(vec4 origin, vec4 dir, out hitinfo_t h)
 
 }
 
-// Checks whether there is any intersection along the ray (origin, dir).
-// Does not compute the nearest intersection, ends the loop as soon as an
+// Checks whether there is any intersection along the ray (origin, dir). Does
+// not compute the nearest intersection, ends the loop as soon as an
 // intersection is found.
 bool isIntersected(vec4 origin, vec4 dir)
 {
@@ -356,92 +348,104 @@ bool isIntersected(vec4 origin, vec4 dir)
 
 }
 
-/* --------------------------- Local illumination --------------------------- */
-// Returns the tan from the cos.
-float cos2tan(float cos_theta) { return (sqrt(1 - (cos_theta * cos_theta))) / cos_theta; }
+/* -------------------------------------------------------------------------- */
+// Return the tangent from the cosinus.
+float costotan(float cos) { return sqrt(1 - (cos * cos)) / cos; }
 
-float g1(float cos_theta)
-{
+float G1(float cos)
+{ 
 
-	return 2 / (1 + sqrt(1 + (alpha * alpha) * pow(cos2tan(cos_theta), 2)));
+	float alpha2 = alpha * alpha;
+	float tan = costotan(cos);
+
+	return 2 / (1 + sqrt(1 + (alpha2 * (tan * tan))));
 
 }
 
-// Chi Distribution
-int chi(float cos_theta)
+float GGX(float cos_i, float cos_o) { return G1(cos_i) * G1(cos_o); }
+
+// Only works if the cosinus given as a parameter is the result of a dot product
+// of normalsed vectors.
+float chi(float cos)
 {
-	// Since cos(0) = 1 and cos(PI / 2) = 0.
-	if (0 <= cos_theta && cos_theta <= 1)
-		return 1;
+
+	if (0.0 < cos && cos < 1.0)
+		return 1.0;
 	else
-		return 0;
+		return 0.0;
 
 }
 
 // Micro-Facet Normal Distribution.
-float mfnd(float cos_theta)
+float MFND(float cos)
 {
 
-	float alpha_sq = alpha * alpha;
-	float numerator, denominator;
+	float alpha2 = alpha * alpha;
+	float tan 	 = costotan(cos);
 
-	numerator   = chi(cos_theta) * alpha_sq;
-	denominator = PI * pow(cos_theta, 4) * pow(alpha_sq + pow(cos2tan(cos_theta), 2), 2);
-
-	return numerator / denominator;
+	float nominator   = chi(cos) * alpha2;
+	float denominator = PI * pow(cos, 4) * pow((alpha2 + pow(tan, 2)), 2);
+	
+	return nominator / denominator;
 
 }
 
-// We use the Schlick approximation given in the lecture slides.
-float fresnel(float cos_theta)
+// Schlick approximation.
+float fresnel(float cos)
 {
 
-	float f_0 = ((1 - eta) * (1 - eta)) / ((1 + eta) * (1 + eta));
-	return f_0 + (1 - f_0) * pow(1 - cos_theta, 5);
+	float f_0 = pow((1 - eta) / (1 + eta), 2);
+	return f_0 + (1 - f_0) * pow((1 - cos), 5);
 
 }
 
-// Computes the direct illumination, at point p, from the light source at
-// lightPosition. The local material has a color 'color', the normal at point p
-// is n, and v is the viewing direction (pointing towards the eye).
 vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 {
 
-	vec4 l, h;
-	float c_a, c_d, c_s;
-	float ct_d, ct_h, ct_i, ct_o;
+	vec4 l = normalize(vec4(lightPosition, 1.0) - p);
+	vec4 h = normalize(v + l);
 
-	l = normalize(vec4(lightPosition, 1.0) - p);
-	h = normalize(v + l);
+	float cos_theta_d, cos_theta_h, cos_theta_i, cos_theta_o;
+	float C_a, C_d, C_s, Ks;
 
-	ct_d = clamp(dot(h, l), 0.001, 1.0); // cos(theta_d)
-	ct_h = clamp(dot(n, h), 0.001, 1.0); // cos(theta_h)
-	ct_i = clamp(dot(n, l), 0.001, 1.0); // cos(theta_i)
-	ct_o = clamp(dot(n, v), 0.001, 1.0); // cos(theta_o)
+	cos_theta_d = max(dot(h, l), 0.0);
+	cos_theta_h = max(dot(n, h), 0.000001);
+	cos_theta_i = max(dot(n, l), 0.000001);
+	cos_theta_o = max(dot(n, v), 0.000001);
+	/*
+		If the cosine is 0, the tangent is undefined. Therefore we need
+		to 'clamp' the value to something slightly greater than 0.
+		Moreover if the value of either cos(theta_i) or cos(theta_o) is
+		0 we end up with a division by 0.
+	*/
 
-	c_a = Ka * lightIntensity;
-	c_d = Kd * ct_i * lightIntensity;
+	C_a = Ka;
+	C_d = Kd * cos_theta_i;
+	Ks  = fresnel(cos_theta_d);
+
+	if (dot(n, l) > 0 && !isIntersected(p + 0.005, l)) {
+		if (blinnPhong) {
+			C_s = Ks * pow(cos_theta_h, shininess);
+			return color * lightIntensity * (C_a + C_d + C_s);
+		} else {
+
+			C_s = (Ks * MFND(cos_theta_h) * GGX(cos_theta_i, cos_theta_o)) /
+				  (4 * cos_theta_i * cos_theta_o);
+			return (color * lightIntensity * (C_a + C_d + C_s));
+		}
+	}
 	
-	if (dot(n, l) >= 0 && !isIntersected(p, l)) {
-		if (blinnPhong)
-			c_s = fresnel(ct_d) * pow(ct_h, shininess) * lightIntensity;
-		else
-			c_s = (fresnel(ct_d) * mfnd(ct_h) * g1(ct_i) * g1(ct_o)) / (4 * ct_i * ct_o);
-		return color * (c_a + c_d + c_s);
-	} else
-		return color * c_a;
-	
+	return C_a * color * lightIntensity;
 
 }
+/* -------------------------------------------------------------------------- */
 
 const int MAX_TRACE = 3;
 
-void getLocal(vec4 origin, vec4 dir, hitinfo_t h, 
-			  out vec4 color, out vec4 p, out vec4 n)
+void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, out vec4 n)
 {
 
 	p = origin + h.t.x * dir;
-
 	if (h.hit_vptr == GROUND_VPTR) {
 		color = texture(colorTexture, h.t.pq);
 		p.y = -groundDistance;
@@ -451,34 +455,18 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h,
 		n = interpolateNormal(h);
 	}
 
-	return;
-
 }
 
 struct trace_state_t {
-	vec4 origin;  		// Start of ray.
-	vec4 dir;     		// Direction.
+	vec4 origin;		// Start of ray.
+	vec4 dir;			// Direction.
 	vec4 color;			// Color after multiple bounces.
 	vec4 localColor;	// Color of the material (after interpolation).
-	hitinfo_t h;  		// What the ray hits (triangle Id, u, v, lambda).
+	hitinfo_t h;		// What the ray hits (triangle Id, u, v, lambda).
 	vec4 hit;     		// Point the ray hits.
 	vec4 Ld;      		// Direction to light at destination.
 	vec4 N;       		// Normal at destination.
 };
-
-void trace_state_init(inout trace_state_t trace, vec4 origin, vec4 dir, vec4 color, vec4 localColor, 
-						hitinfo_t h, vec4 hit, vec4 N)
-{
-
-	trace.origin 		= origin;
-	trace.dir 			= dir;
-	trace.color 		= color;
-	trace.localColor 	= localColor;
-	trace.h 			= h;
-	trace.hit 			= hit;
-	trace.N 			= N;
-
-}
 
 vec4 trace(vec4 origin, vec4 dir)
 {
@@ -488,73 +476,74 @@ vec4 trace(vec4 origin, vec4 dir)
 	bool fallback[MAX_TRACE + 1];
 	int sp = 0;
 
-	// These are for TP1.
+	// These are for TP1:
 	hitinfo_t hl;
 	vec4 hit;
 	vec4 localColor;
 	vec4 N;
 
-	float specular_factor, LdN;
+	trace_state_t current, previous;
+	current.origin = origin;
+	current.dir    = dir;
+	current.h      = hl;
 
-	if (firstIntersection(origin, dir, hl)) {
-		getLocal(origin, dir, hl, localColor, hit, N);
-		
-		trace_state_t current, previous;
-		current.origin 		= origin;
-		current.dir 		= dir;
-		current.localColor 	= localColor;
-		current.h 			= hl;
-		current.hit 		= hit;
-		current.Ld 			= normalize(vec4(lightPosition, 1.0) - hit);
-		current.N 			= N;
-
-		push(stack, sp, current);
-		
-		current.origin	= current.hit;
-		current.dir 	= reflect(current.dir, current.N);
-
-		while (firstIntersection(current.origin, current.dir, current.h) && sp < MAX_TRACE) {
-			getLocal(current.origin, current.dir, current.h, current.localColor, current.hit, current.N);
+	if (isIntersected(origin, dir)) {
+		while (sp < MAX_TRACE && 
+			   firstIntersection(current.origin, current.dir, current.h)) {
+			getLocal(
+				current.origin, current.dir, current.h, 
+				current.localColor, current.hit, current.N
+			);
 			current.Ld = normalize(vec4(lightPosition, 1.0) - current.hit);
 			push(stack, sp, current);
 
-			current.origin	= current.hit;
-			current.dir 	= reflect(current.dir, current.N);
+			current.origin = current.hit;
+			current.dir    = reflect(current.dir, current.N);
 		}
+		previous = current;
 
-		int i = 1;
-		while (sp != 0) {
+		int first = 1;
+		while (sp >= 0) {
 			current = pop(stack, sp);
-			if (i == 1) {
-				current.color = directIllumination(current.localColor, current.hit, current.N, -current.dir);
-				i = 0;
+			
+			if (first == 1) {
+				current.color = directIllumination(
+					current.localColor, current.hit, current.N, -current.dir
+				);
+				first = 0;
 			} else {
-				vec4 h = normalize(-dir + current.Ld);
-				current.color = (previous.color * fresnel(clamp(dot(h, current.N), 0.001, 1.0))) + directIllumination(current.localColor, current.hit, current.N, -current.dir);
+				vec4 h = normalize(-current.dir + current.Ld);
+				float cos_theta_d = max(dot(h, current.Ld), 0.0);
+
+				vec4 directColor = directIllumination(
+					current.localColor, current.hit, current.N, -current.dir
+				);
+				vec4 indirectColor = previous.color * fresnel(cos_theta_d);
+
+				current.color = directColor + indirectColor;
 			}
+
 			previous = current;
 		}
 
-		//return directIllumination(localColor, hit, N, -dir);
 		return current.color;
-	} else
-		return vec4(0, 0, 0, 1);
+	}
+
+	return vec4(0.0, 0.0, 0.0, 1.0);
 
 }
-/* ------------------------- Local illumination End ------------------------- */
 
 layout (local_size_x = 8, local_size_y = 8) in;
-
 void main(void) {
 
 	// Convert local screen coordinates into world coordinates.
-	ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 pix  = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = imageSize(framebuffer);
 	if (pix.x >= size.x || pix.y >= size.y)
 		return;
 
-	vec2 pos = pix / (size - vec2(0.5, 0.5));
-	// pos in [0,1]^2 need it in [-1,1]^2.
+	vec2 pos = float_pix / (size - vec2(0.5, 0.5));
+	// pos in [0,1]^2 Need it in [-1,1]^2:
 	pos = 2 * pos - vec2(1., 1.);
 
 	// Step 1: I need pixel coordinates.
@@ -564,9 +553,9 @@ void main(void) {
 	worldPos.w = 0;
 	worldPos = normalize(worldPos);
 
-	// Step 2: Ray direction:
-	vec4 dir = normalize((mat_inverse * worldPos));
-	vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
+	// Step 2: ray direction:
+	vec4 dir   = normalize((mat_inverse * worldPos));
+	vec4 eye   = (mat_inverse * vec4(0, 0, 0, 1));
 	vec4 color = trace(eye, dir);
 
 	imageStore(framebuffer, pix, color);
