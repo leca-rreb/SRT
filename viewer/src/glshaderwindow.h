@@ -26,10 +26,12 @@ public:
     void initialize();
     void render();
     void resize(int x, int y);
-    void setWorkingDirectory(QString& myPath, QString& myName, QString& texture, QString& envMap);
-    inline const QString& getWorkingDirectory() { return workingDirectory;};
-    inline const QStringList& fragShaderSuffix() { return m_fragShaderSuffix;};
-    inline const QStringList& vertShaderSuffix() { return m_vertShaderSuffix;};
+    void setWorkingDirectory(
+		QString& myPath, QString& myName, QString& texture, QString& envMap
+	);
+    inline const QString& getWorkingDirectory() { return workingDirectory; };
+    inline const QStringList& fragShaderSuffix() { return m_fragShaderSuffix; };
+    inline const QStringList& vertShaderSuffix() { return m_vertShaderSuffix; };
 
 public slots:
     void openSceneFromFile();
@@ -47,20 +49,23 @@ public slots:
     void updateLightIntensity(int lightSliderValue);
     void updateShininess(int shininessSliderValue);
     void updateEta(int etaSliderValue);
-    void updateAlpha(int alphaSliderValue);
 
 protected:
     void mousePressEvent(QMouseEvent *e);
     void mouseMoveEvent(QMouseEvent *e);
     void mouseReleaseEvent(QMouseEvent *e);
     void timerEvent(QTimerEvent *e);
-    void resizeEvent(QResizeEvent * ev);
-    void wheelEvent(QWheelEvent * ev);
-    void keyPressEvent(QKeyEvent* event);
+    void resizeEvent(QResizeEvent *ev);
+    void wheelEvent(QWheelEvent *ev);
+    void keyPressEvent(QKeyEvent *event);
 
 private:
-    QOpenGLShaderProgram* prepareShaderProgram(const QString& vertexShaderPath, const QString& fragmentShaderPath);
-    QOpenGLShaderProgram* prepareComputeProgram(const QString& computeShaderPath);
+    QOpenGLShaderProgram *prepareShaderProgram(
+		const QString& vertexShaderPath, const QString& fragmentShaderPath
+	);
+    QOpenGLShaderProgram *prepareComputeProgram(
+		const QString& computeShaderPath
+	);
     void createSSBO();
     void bindSceneToProgram();
     void initializeTransformForScene();
@@ -72,52 +77,50 @@ private:
     bool isGPGPU;
     // Are we using compute shaders?
     bool hasComputeShaders;
-    // Model we are displaying:
-    QString  workingDirectory;
-    QString  modelName;
-    QString  textureName;
-    QString  envMapName;
-    trimesh::TriMesh* modelMesh;
-    uchar* pixels;
-    // Ground
-    trimesh::point *g_vertices;
-    trimesh::vec *g_normals;
-    trimesh::vec2 *g_texcoords;
-    trimesh::point *g_colors;
+    // Models we are displaying.
+    QString workingDirectory;
+    QString modelName;
+    QString textureName;
+    QString envMapName;
+    trimesh::TriMesh *modelMesh;
+    uchar *pixels;
+    // Ground.
+    trimesh::point	*g_vertices;
+    trimesh::vec 	*g_normals;
+    trimesh::vec2	*g_texcoords;
+    trimesh::point	*g_colors;
     int *g_indices;
     int g_numPoints;
     int g_numIndices;
-    // GPGPU
-    trimesh::point *gpgpu_vertices;
-    trimesh::vec *gpgpu_normals;
-    trimesh::vec2 *gpgpu_texcoords;
-    trimesh::point *gpgpu_colors;
+    // GPGPU.
+    trimesh::point	*gpgpu_vertices;
+    trimesh::vec	*gpgpu_normals;
+    trimesh::vec2	*gpgpu_texcoords;
+    trimesh::point	*gpgpu_colors;
     int *gpgpu_indices;
     int compute_groupsize_x;
     int compute_groupsize_y;
-    // ComputeShader:
+    // ComputeShader.
     GLuint ssbo[5];
-    // Parameters controlled by UI
+    // Parameters controlled by UI.
     bool blinnPhong;
     bool transparent;
     float eta;
     float lightIntensity;
     float shininess;
-	float alpha;
     float lightDistance;
     float groundDistance;
 
-
-    // OpenGL variables encapsulated by Qt
+    // OpenGL variables encapsulated by Qt.
     QOpenGLShaderProgram *m_program;
     QOpenGLShaderProgram *ground_program;
     QOpenGLShaderProgram *compute_program;
     QOpenGLShaderProgram *shadowMapGenerationProgram;
-    QOpenGLTexture* environmentMap;
-    QOpenGLTexture* texture;
-    QOpenGLTexture* permTexture;   // for Perlin noise
-    QOpenGLTexture* computeResult; // output of compute shader
-    // Model
+    QOpenGLTexture *environmentMap;
+    QOpenGLTexture *texture;
+    QOpenGLTexture *permTexture;   // For Perlin noise.
+    QOpenGLTexture *computeResult; // Output of compute shader.
+    // Models.
     QOpenGLBuffer m_vertexBuffer;
     QOpenGLBuffer m_indexBuffer;
     QOpenGLBuffer m_normalBuffer;
@@ -128,31 +131,31 @@ private:
 	QVector3D m_center;
 	QVector3D m_bbmin;
 	QVector3D m_bbmax;
-    // Ground
+    // Ground.
     QOpenGLVertexArrayObject ground_vao;
     QOpenGLBuffer ground_vertexBuffer;
     QOpenGLBuffer ground_indexBuffer;
     QOpenGLBuffer ground_normalBuffer;
     QOpenGLBuffer ground_colorBuffer;
     QOpenGLBuffer ground_texcoordBuffer;
-    // Matrix for all objects
-    QMatrix4x4 m_matrix[3]; // 0 = object, 1 = light, 2 = ground
+    // Matrix for all objects.
+    QMatrix4x4 m_matrix[3]; // 0 = object, 1 = light, 2 = ground.
     QMatrix4x4 m_perspective;
-    // Shadow mapping
+    // Shadow mapping.
     GLuint shadowMap_fboId;
     GLuint shadowMap_rboId;
     GLuint shadowMap_textureId;
     int shadowMapDimension;
-    // User interface variables
+    // User Interface variables.
     bool fullScreenSnapshots;
     QStringList m_fragShaderSuffix;
     QStringList m_vertShaderSuffix;
     QStringList m_compShaderSuffix;
     QVector2D lastMousePosition;
     Qt::MouseButton mouseButton;
-    float m_screenSize; // max window dimension
-    QWidget* auxWidget; // window for parameters
-    QWidget* container;
+    float m_screenSize; // Max window dimension.
+    QWidget *auxWidget; // Window for parameters.
+    QWidget *container;
 };
 
 #endif // GLSHADERWINDOW_H
