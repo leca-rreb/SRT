@@ -21,7 +21,6 @@ uniform vec3 center;
 #define MIN_DISTANCE EPS
 #define GROUND_VPTR -1
 
-const float PHI = 1.61803398874989484820459;
 const float PI  = 3.14159265358979323846264;
 #define M_1_PI 0.31830988618
 
