@@ -1,4 +1,6 @@
 #include "glshaderwindow.h"
+#include "halton.h"
+
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QPixmap>
@@ -425,9 +427,9 @@ void glShaderWindow::createSSBO()
 	/* build BVH */
 	BVH bvh { modelMesh->vertices, modelMesh->faces };
 	const std::vector<BVH::Node>& nodes		= bvh.getNodes();
-	const std::vector<Triangle>&  triangles = bvh.getTriangles();
+	const std::vector<Triangle> & triangles = bvh.getTriangles();
 
-	glGenBuffers(5, ssbo);
+	glGenBuffers(6, ssbo);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[0]);
 	// TODO: test if 4 float alignment works better.
 	glBufferData(
@@ -470,6 +472,14 @@ void glShaderWindow::createSSBO()
 		GL_STATIC_READ
 	);
 	
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[5]);
+	glBufferData(
+		GL_SHADER_STORAGE_BUFFER, 
+		1024 * sizeof(trimesh::vec2), 
+		halton_seq,
+		GL_STATIC_READ
+	);
+
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	compute_program->bind();
 	
@@ -478,6 +488,7 @@ void glShaderWindow::createSSBO()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, ssbo[2]);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, ssbo[3]);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, ssbo[4]);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, ssbo[5]);
 
 }
 
@@ -771,9 +782,9 @@ void glShaderWindow::openScene()
 	modelMesh->need_faces();
 	
 	m_center = QVector3D(modelMesh->bsphere.center[0],
-	
-	modelMesh->bsphere.center[1],
-	modelMesh->bsphere.center[2]);
+		modelMesh->bsphere.center[1],
+		modelMesh->bsphere.center[2]
+	);
 
 	if (compute_program)
 		createSSBO();

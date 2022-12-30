@@ -101,7 +101,7 @@ private:
     int compute_groupsize_x;
     int compute_groupsize_y;
     // ComputeShader.
-    GLuint ssbo[5];
+    GLuint ssbo[6];
     // Parameters controlled by UI.
     bool blinnPhong;
     bool transparent;
