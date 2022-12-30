@@ -27,7 +27,7 @@ const float PI  = 3.14159265358979323846264;
 #define Ka 0.05
 #define Kd 0.3
 
-const float alpha = 1 - shininess;
+float alpha = 1 - shininess;
 
 struct hitinfo_t {
 	// Index of the first index of the triangle or: GROUND_VPTR.
@@ -409,9 +409,9 @@ vec4 directIllumination(vec4 color, vec4 p, vec4 n, vec4 v)
 	float C_a, C_d, C_s, Ks;
 
 	cos_theta_d = max(dot(h, l), 0.0);
-	cos_theta_h = max(dot(n, h), 0.000001);
-	cos_theta_i = max(dot(n, l), 0.000001);
-	cos_theta_o = max(dot(n, v), 0.000001);
+	cos_theta_h = max(dot(n, h), 0.0);
+	cos_theta_i = max(dot(n, l), 0.0);
+	cos_theta_o = max(dot(n, v), 0.0);
 	/*
 		If the cosine is 0, the tangent is undefined. Therefore we need
 		to 'clamp' the value to something slightly greater than 0.
@@ -485,11 +485,11 @@ vec4 trace(vec4 origin, vec4 dir)
 	trace_state_t current, previous;
 	current.origin = origin;
 	current.dir    = dir;
-	current.h      = hl;
-
+	current.h 	   = hl;
+	
 	if (isIntersected(origin, dir)) {
 		while (sp < MAX_TRACE && 
-			   firstIntersection(current.origin, current.dir, current.h)) {
+				firstIntersection(current.origin, current.dir, current.h)) {
 			getLocal(
 				current.origin, current.dir, current.h, 
 				current.localColor, current.hit, current.N
@@ -500,7 +500,6 @@ vec4 trace(vec4 origin, vec4 dir)
 			current.origin = current.hit;
 			current.dir    = reflect(current.dir, current.N);
 		}
-		previous = current;
 
 		int first = 1;
 		while (sp >= 0) {
@@ -542,7 +541,7 @@ void main(void) {
 	if (pix.x >= size.x || pix.y >= size.y)
 		return;
 
-	vec2 pos = float_pix / (size - vec2(0.5, 0.5));
+	vec2 pos = pix / (size - vec2(0.5, 0.5));
 	// pos in [0,1]^2 Need it in [-1,1]^2:
 	pos = 2 * pos - vec2(1., 1.);
 
