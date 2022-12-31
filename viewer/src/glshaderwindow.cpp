@@ -34,7 +34,7 @@ glShaderWindow::glShaderWindow(QWindow *parent)
       environmentMap(0), texture(0), permTexture(0), pixels(0),
 	  mouseButton(Qt::NoButton), auxWidget(0),
       isGPGPU(true), hasComputeShaders(true), blinnPhong(true),
-	  transparent(true),
+	  transparent(true), 
 	  eta(1.5), lightIntensity(1.0f), shininess(50.0f), lightDistance(5.0f),
 	  groundDistance(0.78), frameCounter(1), 
       shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0),
