@@ -2,6 +2,8 @@
 
 layout (binding = 2, rgba32f) uniform image2D framebuffer;
 
+layout (binding = 4, rgba32f) uniform image2D squaredValues;
+
 uniform sampler2D colorTexture;
 uniform mat4 mat_inverse;
 uniform mat4 persp_inverse;
@@ -29,7 +31,7 @@ const float PI  = 3.14159265358979323846264;
 #define Ka 0.05
 #define Kd 0.3
 
-const float alpha = 1 - shininess;
+float alpha = 1 - shininess;
 
 struct hitinfo_t {
 	// Index of the first index of the triangle or: GROUND_VPTR.
@@ -57,8 +59,6 @@ layout (std430, binding = 4) buffer Meshes { int indices[]; };
 layout (std430, binding = 5) buffer BVHNodes { BVHNode nodes[]; };
 
 layout (std430, binding = 6) buffer Halton { vec2 halton_seq[]; };
-
-layout (std430, binding = 7) buffer SQAVG { vec4 squaredAverage[];};
 
 // Check whether there is an intersection between the ray (origin, dir) and the
 // bounding box (bbmin, bbmax), stores into tNear the nearest point of
@@ -490,7 +490,7 @@ vec4 trace(vec4 origin, vec4 dir)
 	trace_state_t current, previous;
 	current.origin = origin;
 	current.dir    = dir;
-	current.h      = hl;
+	//current.h      = hl;
 
 	if (isIntersected(origin, dir)) {
 		while (sp < MAX_TRACE && 
@@ -561,48 +561,11 @@ void main(void) {
 	vec4 color = vec4(0.0);
 	vec4 squared = vec4(0.0);
 
-	if (frameCounter > 1) {
-		vec4 previousAvg = imageLoad(framebuffer, pix);
-		vec4 previousAvgSq = previousAvg * previousAvg;
+	vec4 previousSq = imageLoad(squaredValues, pix);
+	vec4 previousAvg = imageLoad(framebuffer, pix);
+	vec4 variance = previousSq - (previousAvg * previousAvg);
 
-		vec4 variance = squaredAverage[pix.x * size.x + pix.y] - previousAvgSq;
-
-		if (any(greaterThanEqual(sqrt(variance), 0.1 * previousAvg))) {
-			
-			for (int i = 0; i < rpp; i++) {
-				//vec2 float_pix = pix + gold_noise(pix, frameCounter + 0.1 * i);
-				vec2 float_pix = pix + halton_seq[frameCounter % 1024];
-				
-				vec2 pos = float_pix / (size - vec2(0.5, 0.5));
-				// pos in [0,1]^2 Need it in [-1,1]^2:
-				pos = 2 * pos - vec2(1., 1.);
-
-				// Step 1: I need pixel coordinates.
-				vec4 worldPos = vec4(pos.x, pos.y, 1.0, 1.0);
-				worldPos = persp_inverse * worldPos;
-				worldPos /= worldPos.w;
-				worldPos.w = 0;
-				worldPos = normalize(worldPos);
-
-				// Step 2: ray direction:
-				vec4 dir = normalize((mat_inverse * worldPos));
-				vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
-				vec4 tmpColor = trace(eye, dir);
-				color 	+= tmpColor;
-				squared += (tmpColor * tmpColor);
-			}
-			color /= rpp;
-			squaredAverage[pix.x * size.x + pix.y] = squared / rpp;
-
-			vec4 previous = imageLoad(framebuffer, pix);
-			color = ((frameCounter - 1) * previous + color) / frameCounter;
-			
-			imageStore(framebuffer, pix, color);
-		
-		} else {
-			imageStore(framebuffer, pix, previousAvg);
-		}
-	} else {
+	if (any(greaterThanEqual(0.1 * previousAvg, sqrt(variance)))) {
 		for (int i = 0; i < rpp; i++) {
 			//vec2 float_pix = pix + gold_noise(pix, frameCounter + 0.1 * i);
 			vec2 float_pix = pix + halton_seq[frameCounter % 1024];
@@ -622,12 +585,19 @@ void main(void) {
 			vec4 dir = normalize((mat_inverse * worldPos));
 			vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
 			vec4 tmpColor = trace(eye, dir);
-			color 	+= tmpColor;
+			color += tmpColor;
 			squared += (tmpColor * tmpColor);
 		}
 		color /= rpp;
-		squaredAverage[pix.x * size.x + pix.y] = squared / rpp;
+		squared /= rpp;
+
+
+		if (frameCounter > 1) {
+			color 	= ((frameCounter - 1) * previousAvg + color) / frameCounter;
+			squared = ((frameCounter - 1) * previousSq + squared) / frameCounter;
+		}
 		
+		imageStore(squaredValues, pix, squared);
 		imageStore(framebuffer, pix, color);
 	}
 
