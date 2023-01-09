@@ -27,7 +27,7 @@ const float PI  = 3.14159265358979323846264;
 #define Ka 0.05
 #define Kd 0.3
 
-const float alpha = 1 - shininess;
+float alpha = 1 - shininess;
 
 struct hitinfo_t {
 	// Index of the first index of the triangle or: GROUND_VPTR.
