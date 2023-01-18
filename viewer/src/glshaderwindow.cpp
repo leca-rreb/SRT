@@ -38,7 +38,7 @@ glShaderWindow::glShaderWindow(QWindow *parent)
 	  eta(1.5), lightIntensity(1.0f), shininess(50.0f), lightDistance(5.0f),
 	  groundDistance(0.78), frameCounter(1), 
       shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0),
-	  fullScreenSnapshots(false), computeResult(0), 
+	  fullScreenSnapshots(false), computeResult(0), computeBuffer(0), 
       m_indexBuffer(QOpenGLBuffer::IndexBuffer), 
 	  ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
 {
@@ -914,6 +914,13 @@ void glShaderWindow::loadTexturesForShaders()
 		computeResult = 0;
 	}
 
+	if (computeBuffer) {
+		computeBuffer->release();
+		computeBuffer->destroy();
+		delete computeBuffer;
+		computeBuffer = 0;
+	}
+
 	// Load textures as required by the shader.
 	if (
 		(m_program->uniformLocation("colorTexture") != -1) || 
@@ -980,6 +987,21 @@ void glShaderWindow::loadTexturesForShaders()
 			computeResult->allocateStorage();
 			computeResult->bind(2);
 		}
+
+		glActiveTexture(GL_TEXTURE4);
+		computeBuffer = new QOpenGLTexture(QOpenGLTexture::Target2D);
+		
+		if (computeBuffer) {
+			computeBuffer->create();
+			computeBuffer->setFormat(QOpenGLTexture::RGBA32F);
+			computeBuffer->setSize(width(), height());
+			computeBuffer->setWrapMode(QOpenGLTexture::MirroredRepeat);
+			computeBuffer->setMinificationFilter(QOpenGLTexture::Nearest);
+			computeBuffer->setMagnificationFilter(QOpenGLTexture::Nearest);
+			computeBuffer->allocateStorage();
+			computeBuffer->bind(4);
+		}
+
 	} else if (m_program->uniformLocation("shadowMap") != -1) {
 		// Without Qt functions this time.
 		glActiveTexture(GL_TEXTURE2);
@@ -1136,6 +1158,13 @@ void glShaderWindow::resize(int x, int y)
 		computeResult = 0;
 	}
 
+	if (computeBuffer) {
+		computeBuffer->release();
+		computeBuffer->destroy();
+		delete computeBuffer;
+		computeBuffer = 0;
+	}
+
 	if (hasComputeShaders) {
 		if (m_program == NULL)
 			return;
@@ -1163,6 +1192,19 @@ void glShaderWindow::resize(int x, int y)
 			computeResult->setMagnificationFilter(QOpenGLTexture::Nearest);
 			computeResult->allocateStorage();
 			computeResult->bind(2);
+		}
+
+		glActiveTexture(GL_TEXTURE4);
+		computeBuffer = new QOpenGLTexture(QOpenGLTexture::Target2D);
+		if (computeBuffer) {
+			computeBuffer->create();
+			computeBuffer->setFormat(QOpenGLTexture::RGBA32F);
+			computeBuffer->setSize(width(), height());
+			computeBuffer->setWrapMode(QOpenGLTexture::MirroredRepeat);
+			computeBuffer->setMinificationFilter(QOpenGLTexture::Nearest);
+			computeBuffer->setMagnificationFilter(QOpenGLTexture::Nearest);
+			computeBuffer->allocateStorage();
+			computeBuffer->bind(4);
 		}
 #endif
 		m_program->release();
@@ -1432,6 +1474,9 @@ void glShaderWindow::render()
 		compute_program->bind();
 		computeResult->bind(2);
 
+		glActiveTexture(GL_TEXTURE4);
+		computeBuffer->bind(4);
+
 		// Send parameters to compute program.
 		compute_program->setUniformValue("center", m_center);
 		compute_program->setUniformValue("radius", modelMesh->bsphere.r);
@@ -1449,11 +1494,19 @@ void glShaderWindow::render()
 		compute_program->setUniformValue("shininess",		shininess);
 		compute_program->setUniformValue("eta",				eta);
 		compute_program->setUniformValue("framebuffer",		2);
+		compute_program->setUniformValue("squaredAverageBuffer", 4);
 		compute_program->setUniformValue("colorTexture",	0);
 		compute_program->setUniformValue("frameCounter",	frameCounter);
 		
+		glActiveTexture(GL_TEXTURE2);
 		glBindImageTexture(
 			2, computeResult->textureId(), 0,
+			false, 0, GL_READ_WRITE, GL_RGBA32F
+		);
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindImageTexture(
+			4, computeBuffer->textureId(), 0,
 			false, 0, GL_READ_WRITE, GL_RGBA32F
 		);
 		
@@ -1466,6 +1519,7 @@ void glShaderWindow::render()
 		);
 		
 		glBindImageTexture(2, 0, 0, false, 0, GL_READ_WRITE, GL_RGBA32F); 
+		glBindImageTexture(4, 0, 0, false, 0, GL_READ_WRITE, GL_RGBA32F);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 		compute_program->release();
 	} else if (m_program->uniformLocation("shadowMap") != -1) {
@@ -1535,6 +1589,7 @@ void glShaderWindow::render()
 	m_program->setUniformValue("eta",				eta);
 	m_program->setUniformValue("radius",			modelMesh->bsphere.r);
 	m_program->setUniformValue("frameCounter",		frameCounter);
+	m_program->setUniformValue("squaredAverageBuffer", 4);
 
 
 	if (m_program->uniformLocation("colorTexture") != -1)
